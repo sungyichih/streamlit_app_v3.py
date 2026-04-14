@@ -176,50 +176,31 @@ def read_organized_cpn_mapping(uploaded_file, sheet_name='SPN-CPN Mapping'):
     out = out[(out['SPN'] != '') & (out['CPN'] != '')].drop_duplicates().reset_index(drop=True)
     return out
 
-def read_organized_mpn_mapping(uploaded_file, sheet_name='SPN-MPN Mapping'):
+def read_organized_mpn_mapping(uploaded_file, sheet_name="SPN-MPN Mapping"):
     df = read_excel_safely(uploaded_file, sheet_name=sheet_name)
-    df = make_unique_columns(df)
 
-    lookup = {normalize_key(c): c for c in df.columns}
+    df = df.iloc[1:]   # ⭐ 跳過 header（如果你 Excel 第一列是 SPN / MFG / MPN）
 
-    spn_col = None
-    mpn_col = None
-    mfg_col = None
-
-    for c in ['SPN', 'MATERIAL', 'INTERNAL SPN', 'SYSTEM SPN']:
-        if c in lookup:
-            spn_col = lookup[c]
-            break
-
-    for c in ['MPN', 'MFR. P/N', 'MFR PN', 'PART NUMBER', 'MANUFACTURER PART NUMBER']:
-        if c in lookup:
-            mpn_col = lookup[c]
-            break
-
-    for c in ['MFG', 'MFR', 'MANUFACTURER', 'MFR. NAME']:
-        if c in lookup:
-            mfg_col = lookup[c]
-            break
-
-    if spn_col is None or mpn_col is None:
+    if df.shape[1] < 3:
         raise ValueError(
-            'Sheet "SPN-MPN Mapping" must contain columns for SPN and MPN. '
-            'Recommended column names: "SPN" and "MPN".'
+            'Sheet "SPN-MPN Mapping" must have at least 3 columns (A=SPN, B=MFG, C=MPN)'
         )
 
-    if mfg_col is not None:
-        out = df[[spn_col, mfg_col, mpn_col]].copy()
-        out.columns = ['SPN', 'System_MFG', 'System_MPN']
-    else:
-        out = df[[spn_col, mpn_col]].copy()
-        out.columns = ['SPN', 'System_MPN']
-        out['System_MFG'] = ''
+    out = df.iloc[:, [0, 1, 2]].copy()
+    out.columns = ["SPN", "System_MFG", "System_MPN"]
 
-    out['SPN'] = out['SPN'].apply(normalize_text)
-    out['System_MFG'] = out['System_MFG'].apply(normalize_text)
-    out['System_MPN'] = out['System_MPN'].apply(normalize_text)
-    out = out[(out['SPN'] != '') & (out['System_MPN'] != '')].drop_duplicates().reset_index(drop=True)
-    return out[['SPN', 'System_MFG', 'System_MPN']]
+    # 清理資料
+    out["SPN"] = out["SPN"].apply(normalize_text)
+    out["System_MFG"] = out["System_MFG"].apply(normalize_text)
+    out["System_MPN"] = out["System_MPN"].apply(normalize_text)
+
+    # 移除空值
+    out = out[(out["SPN"] != "") & (out["System_MPN"] != "")]
+
+    # 去重
+    out = out.drop_duplicates().reset_index(drop=True)
+
+    return out
 
 def map_cpn_to_spn(original_base_df, cpn_mapping_df):
     left = original_base_df.copy()
